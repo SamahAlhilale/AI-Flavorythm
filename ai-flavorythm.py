@@ -118,7 +118,6 @@ predefined_flavors = [
     "Citrus & Mint Summer Drink",
     "Dark Chocolate Raspberry Dessert",
     "Caramel Cinnamon Coffee Blend",
-    "Aged Cheese & Truffle Appetizer",
     "Lavender Honey Ice Cream"
 ]
 
