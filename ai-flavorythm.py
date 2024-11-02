@@ -57,18 +57,22 @@ st.markdown('<p class="subheader">Flavor-Inspired Art Generator by Alsherazi Clu
 def load_models():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model_id = "CompVis/stable-diffusion-v1-4"
-    pipe = StableDiffusionPipeline.from_pretrained(model_id, torch_dtype=torch.float32)
+    pipe = StableDiffusionPipeline.from_pretrained(
+        model_id, 
+        torch_dtype=torch.float32,
+        safety_checker=None  
+    )
     pipe.scheduler = DDIMScheduler.from_pretrained(model_id, subfolder="scheduler")
     pipe = pipe.to(device)
-    pipe.enable_attention_slicing()
+    pipe.enable_attention_slicing(1)  
     return device, pipe
 
 device, pipe = load_models()
 
 def generate_video_from_flavor(flavor_description, progress_bar, status_text):
     base_prompt = f"Artistic representation of {flavor_description}, vibrant colors, abstract, food photography style"
-    num_images = 4  
-    num_inference_steps = 10  # Reduced for speed
+    num_images = 3 
+    num_inference_steps = 8 
 
     images = []
     try:
@@ -77,7 +81,7 @@ def generate_video_from_flavor(flavor_description, progress_bar, status_text):
                 image = pipe(
                     base_prompt, 
                     num_inference_steps=num_inference_steps, 
-                    guidance_scale=7.5, 
+                    guidance_scale=7.0,  
                     height=512, 
                     width=512
                 ).images[0]
@@ -93,10 +97,10 @@ def generate_video_from_flavor(flavor_description, progress_bar, status_text):
 
     clips = []
     for img in images:
-        clip = ImageClip(img).set_duration(0.8)
+        clip = ImageClip(img).set_duration(0.6)
         clips.append(clip)
     concat_clip = concatenate_videoclips(clips, method="compose")
-    final_clip = concat_clip.fx(vfx.fadeout, duration=0.3).fx(vfx.fadein, duration=0.3)
+    final_clip = concat_clip.fx(vfx.fadeout, duration=0.2).fx(vfx.fadein, duration=0.2)  # Shorter transitions
 
     return final_clip
 
@@ -124,12 +128,13 @@ predefined_flavors = [
 ]
 
 flavor_menu = st.sidebar.empty()
-selected_flavor = flavor_menu.radio("Select a flavor inspiration or create your own:",
-                                   ["Create your own"] + predefined_flavors,
-                                   index=0,
-                                   format_func=lambda x: x if x != "Create your own" else "✨ Create your own flavor")
+selected_flavor = flavor_menu.radio(
+    "Select a flavor inspiration or create your own:",
+    ["Create your own"] + predefined_flavors,
+    index=0,
+    format_func=lambda x: x if x != "Create your own" else "✨ Create your own flavor"
+)
 
-# Main area
 if selected_flavor == "Create your own":
     flavor_description = st.text_input("Enter your flavor description:", "", key="flavor_input")
 else:
