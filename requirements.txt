@@ -1,7 +1,7 @@
-@"
 streamlit
 torch
 diffusers
 moviepy
 numpy
-"@ | Out-File -FilePath "requirements.txt" -Encoding UTF8 -NoNewline
+Pillow
+transformers
