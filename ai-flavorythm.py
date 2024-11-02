@@ -32,9 +32,10 @@ st.markdown('<p class="subheader">Flavor-Inspired Art Generator</p>', unsafe_all
 
 @st.cache_resource
 def load_model():
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    pipe = StableDiffusionPipeline.from_pretrained("CompVis/stable-diffusion-v1-4")
-    pipe = pipe.to(device)
+    model_id = "CompVis/stable-diffusion-v1-4"
+    pipe = StableDiffusionPipeline.from_pretrained(model_id, torch_dtype=torch.float32)
+    if torch.cuda.is_available():
+        pipe = pipe.to("cuda")
     return pipe
 
 pipe = load_model()
@@ -43,12 +44,18 @@ def generate_video(flavor_description, progress_bar):
     prompt = f"Artistic representation of {flavor_description}, vibrant colors, abstract style"
     images = []
     
-    for i in range(4):
-        image = pipe(prompt, num_inference_steps=20).images[0]
+    # Reduced to 3 images and 15 inference steps for speed
+    for i in range(3):
+        with torch.inference_mode():
+            image = pipe(
+                prompt, 
+                num_inference_steps=15,
+                guidance_scale=7.0,
+            ).images[0]
         images.append(np.array(image))
-        progress_bar.progress((i + 1) / 4)
+        progress_bar.progress((i + 1) / 3)
     
-    clips = [ImageClip(img).set_duration(1.0) for img in images]
+    clips = [ImageClip(img).set_duration(0.8) for img in images]
     final_clip = concatenate_videoclips(clips)
     filename = f"{re.sub(r'\W+', '_', flavor_description)}.mp4"
     final_clip.write_videofile(filename, fps=24)
@@ -57,9 +64,9 @@ def generate_video(flavor_description, progress_bar):
 # Predefined flavors
 flavors = [
     "Citrus & Mint Summer Drink",
-    "Dark Chocolate Raspberry Dessert",
-    "Caramel Cinnamon Coffee Blend",
-    "Lavender Honey Ice Cream"
+    "Dark Chocolate Raspberry",
+    "Caramel Coffee Blend",
+    "Lavender Ice Cream"
 ]
 
 # UI
@@ -77,16 +84,17 @@ else:
 
 if st.button("🎨 Generate") and flavor:
     progress = st.progress(0)
-    try:
-        video_file = generate_video(flavor, progress)
-        with open(video_file, 'rb') as f:
-            st.video(f.read())
-    except Exception as e:
-        st.error(f"Error: {str(e)}")
-    finally:
-        progress.empty()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+    with st.spinner("Generating your artistic visualization..."):
+        try:
+            video_file = generate_video(flavor, progress)
+            with open(video_file, 'rb') as f:
+                st.video(f.read())
+        except Exception as e:
+            st.error(f"Error: {str(e)}")
+        finally:
+            progress.empty()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🎨 About")
