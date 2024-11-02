@@ -5,5 +5,3 @@ moviepy
 numpy
 Pillow
 transformers
-accelerate
-safetensors

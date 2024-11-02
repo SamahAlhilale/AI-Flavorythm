@@ -14,12 +14,10 @@ import time
 
 st.set_page_config(layout="wide", page_title="AI-Flavorythm", page_icon="🎨")
 
-# CSS styles
+# CSS styles remain the same...
 st.markdown("""
     <style>
-    .main {
-        background-color: #1E1E1E;
-    }
+    .main { background-color: #1E1E1E; }
     .big-font {
         font-size: 60px !important;
         font-weight: bold;
@@ -54,72 +52,56 @@ st.markdown("""
 st.markdown('<p class="big-font">AI-Flavorythm</p>', unsafe_allow_html=True)
 st.markdown('<p class="subheader">Flavor-Inspired Art Generator by Alsherazi Club</p>', unsafe_allow_html=True)
 
-# Enable CUDA optimizations
-if torch.cuda.is_available():
-    torch.backends.cudnn.benchmark = True
-    torch.cuda.empty_cache()
-
 @st.cache_resource
 def load_models():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model_id = "CompVis/stable-diffusion-v1-4"
     
-    # Add memory optimization flags
     pipe = StableDiffusionPipeline.from_pretrained(
         model_id,
         torch_dtype=torch.float16 if device == "cuda" else torch.float32,
-        low_cpu_mem_usage=True,
-        use_safetensors=True
     )
-    
-    # Use lower precision for CPU
-    if device == "cpu":
-        pipe = pipe.to(torch.float32)
-    else:
-        pipe = pipe.to(device)
-    
-    # Enable memory efficient attention
-    pipe.enable_attention_slicing()
-    
-    # Set scheduler
+    pipe = pipe.to(device)
     pipe.scheduler = DDIMScheduler.from_pretrained(model_id, subfolder="scheduler")
-    
     return device, pipe
 
-# Load models at startup
 device, model_pipe = load_models()
 
 def generate_video_from_flavor(flavor_description, progress_bar, status_text, pipe=model_pipe):
     base_prompt = f"Artistic representation of {flavor_description}, vibrant colors, abstract, food photography style"
-    num_images = 8  
-    num_inference_steps = 8  
-    max_retries = 3
-
+    num_images = 6  # Reduced from 8 to 6 for faster generation
+    num_inference_steps = 20  # Increased for better quality
+    
     images = []
-    for attempt in range(max_retries):
-        try:
-            for i in range(num_images):
-                image = pipe(base_prompt, num_inference_steps=num_inference_steps, guidance_scale=7.5, height=512, width=512).images[0]
-                images.append(np.array(image))
-                progress = (i + 1) / num_images
-                progress_bar.progress(progress)
-                status_text.text(f"Generating video... {progress:.0%}")
-            break
-        except RuntimeError as e:
-            if "out of memory" in str(e).lower() and attempt < max_retries - 1:
-                torch.cuda.empty_cache()
-                gc.collect()
-                time.sleep(1)
-            else:
-                raise e
+    try:
+        for i in range(num_images):
+            image = pipe(
+                base_prompt, 
+                num_inference_steps=num_inference_steps,
+                guidance_scale=7.5,
+                height=512,
+                width=512
+            ).images[0]
+            images.append(np.array(image))
+            progress = (i + 1) / num_images
+            progress_bar.progress(progress)
+            status_text.text(f"Generating video... {progress:.0%}")
+            
+    except RuntimeError as e:
+        if "out of memory" in str(e).lower():
+            torch.cuda.empty_cache()
+            gc.collect()
+            raise RuntimeError("Memory error occurred. Please try again.")
+        raise e
 
     clips = []
     for img in images:
-        clip = ImageClip(img).set_duration(5 / num_images)
+        clip = ImageClip(img).set_duration(0.8)  # Shorter duration per clip
         clips.append(clip)
+    
     concat_clip = concatenate_videoclips(clips, method="compose")
-    final_clip = concat_clip.fx(vfx.fadeout, duration=0.5).fx(vfx.fadein, duration=0.5)
-
+    final_clip = concat_clip.fx(vfx.fadeout, duration=0.3).fx(vfx.fadein, duration=0.3)
+    
     return final_clip
 
 def clean_filename(filename):
@@ -135,7 +117,6 @@ def save_and_display_video(video, flavor_description):
             <source src="data:video/mp4;base64,{video_base64}" type="video/mp4">
         </video>
     ''', unsafe_allow_html=True)
-    print(f"Video saved as: {video_filename}")
 
 # Flavor menu
 st.sidebar.markdown("### 🍽️ Flavor Palette")
@@ -147,10 +128,12 @@ predefined_flavors = [
 ]
 
 flavor_menu = st.sidebar.empty()
-selected_flavor = flavor_menu.radio("Select a flavor inspiration or create your own:",
-                                   ["Create your own"] + predefined_flavors,
-                                   index=0,
-                                   format_func=lambda x: x if x != "Create your own" else "✨ Create your own flavor")
+selected_flavor = flavor_menu.radio(
+    "Select a flavor inspiration or create your own:",
+    ["Create your own"] + predefined_flavors,
+    index=0,
+    format_func=lambda x: x if x != "Create your own" else "✨ Create your own flavor"
+)
 
 # Main area
 if selected_flavor == "Create your own":
@@ -169,13 +152,11 @@ if st.button("🎨 Generate Artistic Video"):
     except Exception as e:
         st.error(f"An unexpected error occurred: {str(e)}")
         st.error("Please try again or contact support if the issue persists.")
-        st.error("Detailed error information:")
         st.code(traceback.format_exc())
     finally:
         status_text.text("Process completed.")
         progress_bar.empty()
         torch.cuda.empty_cache()
-        gc.collect()
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🎨 About AI-Flavorythm")
