@@ -2,6 +2,9 @@
 warnings.filterwarnings('ignore')
 import streamlit as st
 import torch
+torch.backends.cudnn.benchmark = True
+if torch.cuda.is_available():
+    torch.cuda.empty_cache()
 from diffusers import StableDiffusionPipeline, DDIMScheduler
 from moviepy.editor import ImageClip, concatenate_videoclips, vfx
 import io
@@ -57,12 +60,28 @@ st.markdown('<p class="subheader">Flavor-Inspired Art Generator by Alsherazi Clu
 def load_models():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model_id = "CompVis/stable-diffusion-v1-4"
-    pipe = StableDiffusionPipeline.from_pretrained(model_id, torch_dtype=torch.float16 if device == "cuda" else torch.float32)
+    
+    # Add memory optimization flags
+    pipe = StableDiffusionPipeline.from_pretrained(
+        model_id,
+        torch_dtype=torch.float16 if device == "cuda" else torch.float32,
+        low_cpu_mem_usage=True,
+        use_safetensors=True
+    )
+    
+    # Use lower precision for CPU
+    if device == "cpu":
+        pipe = pipe.to(torch.float32)
+    else:
+        pipe = pipe.to(device)
+    
+    # Enable memory efficient attention
+    pipe.enable_attention_slicing()
+    
+    # Set scheduler
     pipe.scheduler = DDIMScheduler.from_pretrained(model_id, subfolder="scheduler")
-    pipe = pipe.to(device)
+    
     return device, pipe
-
-device, pipe = load_models()
 
 def generate_video_from_flavor(flavor_description, progress_bar, status_text):
     base_prompt = f"Artistic representation of {flavor_description}, vibrant colors, abstract, food photography style"
