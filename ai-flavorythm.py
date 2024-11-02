@@ -1,18 +1,13 @@
-﻿import warnings
-warnings.filterwarnings('ignore')
-import streamlit as st
+﻿import streamlit as st
 import torch
 from diffusers import StableDiffusionPipeline, DDIMScheduler
 from moviepy.editor import ImageClip, concatenate_videoclips, vfx
-import traceback
-import gc
 import numpy as np
 import base64
 import re
 
 st.set_page_config(layout="wide", page_title="AI-Flavorythm", page_icon="🎨")
 
-# CSS styles remain the same
 st.markdown("""
     <style>
     .main { background-color: #1E1E1E; }
@@ -38,44 +33,48 @@ st.markdown("""
 st.markdown('<p class="big-font">AI-Flavorythm</p>', unsafe_allow_html=True)
 st.markdown('<p class="subheader">Flavor-Inspired Art Generator by Alsherazi Club</p>', unsafe_allow_html=True)
 
-@st.cache_resource(show_spinner=False)
+@st.cache_resource
 def load_models():
-    try:
-        with st.spinner('Loading AI model... This might take a minute...'):
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-            pipe = StableDiffusionPipeline.from_pretrained(
-                "CompVis/stable-diffusion-v1-4",
-                torch_dtype=torch.float32,  # Using float32 for better compatibility
-                safety_checker=None  # Disable safety checker for speed
-            )
-            pipe = pipe.to(device)
-            pipe.scheduler = DDIMScheduler.from_config(pipe.scheduler.config)
-            return pipe
-    except Exception as e:
-        st.error(f"Error loading model: {str(e)}")
-        return None
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model_id = "CompVis/stable-diffusion-v1-4"
+    pipe = StableDiffusionPipeline.from_pretrained(model_id)
+    pipe = pipe.to(device)
+    pipe.scheduler = DDIMScheduler.from_pretrained(model_id, subfolder="scheduler")
+    return pipe
 
-def generate_images(pipe, prompt, num_images=4):
+model_pipe = load_models()
+
+def generate_video_from_flavor(flavor_description, progress_bar, status_text):
+    base_prompt = f"Artistic representation of {flavor_description}, vibrant colors, abstract, food photography style"
+    num_images = 4  # Reduced for faster generation
+    num_inference_steps = 20
+    
     images = []
-    for _ in range(num_images):
-        with torch.inference_mode():
-            image = pipe(
-                prompt,
-                num_inference_steps=20,
-                guidance_scale=7.5,
-                height=512,
-                width=512
-            ).images[0]
-            images.append(np.array(image))
-    return images
+    for i in range(num_images):
+        image = model_pipe(
+            base_prompt, 
+            num_inference_steps=num_inference_steps, 
+            guidance_scale=7.5
+        ).images[0]
+        images.append(np.array(image))
+        progress = (i + 1) / num_images
+        progress_bar.progress(progress)
+        status_text.text(f"Generating image {i+1}/{num_images}")
 
-def create_video(images):
-    clips = [ImageClip(img).set_duration(1.0) for img in images]
+    clips = []
+    for img in images:
+        clip = ImageClip(img).set_duration(1.0)
+        clips.append(clip)
+    
     final_clip = concatenate_videoclips(clips, method="compose")
     return final_clip.fx(vfx.fadeout, duration=0.3).fx(vfx.fadein, duration=0.3)
 
-# Load model at startup
-pipe = load_models()
+def save_and_display_video(video, flavor_description):
+    video_filename = f"{re.sub(r'\W+', '_', flavor_description.strip()).lower()}.mp4"
+    video.write_videofile(video_filename, codec='libx264', fps=24)
+    with open(video_filename, "rb") as f:
+        video_bytes = f.read()
+    st.video(video_bytes)
 
 # Flavor menu
 predefined_flavors = [
@@ -85,46 +84,35 @@ predefined_flavors = [
     "Lavender Honey Ice Cream"
 ]
 
-with st.sidebar:
-    st.markdown("### 🍽️ Flavor Palette")
-    selected_flavor = st.radio(
-        "Select a flavor inspiration or create your own:",
-        ["Create your own"] + predefined_flavors,
-        format_func=lambda x: "✨ Create your own flavor" if x == "Create your own" else x
-    )
+st.sidebar.markdown("### 🍽️ Flavor Palette")
+selected_flavor = st.sidebar.radio(
+    "Select a flavor inspiration or create your own:",
+    ["Create your own"] + predefined_flavors,
+    format_func=lambda x: "✨ Create your own flavor" if x == "Create your own" else x
+)
 
-# Main area
 if selected_flavor == "Create your own":
     flavor_description = st.text_input("Enter your flavor description:", "")
 else:
     flavor_description = st.text_input("Enter your flavor description:", selected_flavor)
 
-if st.button("🎨 Generate Artistic Video") and pipe is not None:
+if st.button("🎨 Generate Artistic Video"):
     if not flavor_description:
-        st.warning("Please enter a flavor description first!")
+        st.warning("Please enter a flavor description!")
     else:
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
         try:
-            with st.spinner("Generating your artistic visualization..."):
-                prompt = f"Artistic representation of {flavor_description}, vibrant colors, abstract, food photography style"
-                images = generate_images(pipe, prompt)
-                video = create_video(images)
-                
-                # Save video
-                filename = f"{re.sub(r'\W+', '_', flavor_description.strip()).lower()}.mp4"
-                video.write_videofile(filename, codec='libx264', fps=24)
-                
-                # Display video
-                with open(filename, "rb") as f:
-                    video_bytes = f.read()
-                st.video(video_bytes)
-                
+            video = generate_video_from_flavor(flavor_description, progress_bar, status_text)
+            save_and_display_video(video, flavor_description)
         except Exception as e:
             st.error(f"An error occurred: {str(e)}")
-            st.code(traceback.format_exc())
         finally:
+            status_text.text("Process completed.")
+            progress_bar.empty()
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
-            gc.collect()
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🎨 About AI-Flavorythm")
