@@ -2,9 +2,6 @@
 warnings.filterwarnings('ignore')
 import streamlit as st
 import torch
-torch.backends.cudnn.benchmark = True
-if torch.cuda.is_available():
-    torch.cuda.empty_cache()
 from diffusers import StableDiffusionPipeline, DDIMScheduler
 from moviepy.editor import ImageClip, concatenate_videoclips, vfx
 import io
@@ -13,6 +10,7 @@ import gc
 import numpy as np
 import base64
 import re
+import time
 
 st.set_page_config(layout="wide", page_title="AI-Flavorythm", page_icon="🎨")
 
@@ -56,6 +54,11 @@ st.markdown("""
 st.markdown('<p class="big-font">AI-Flavorythm</p>', unsafe_allow_html=True)
 st.markdown('<p class="subheader">Flavor-Inspired Art Generator by Alsherazi Club</p>', unsafe_allow_html=True)
 
+# Enable CUDA optimizations
+if torch.cuda.is_available():
+    torch.backends.cudnn.benchmark = True
+    torch.cuda.empty_cache()
+
 @st.cache_resource
 def load_models():
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -83,7 +86,10 @@ def load_models():
     
     return device, pipe
 
-def generate_video_from_flavor(flavor_description, progress_bar, status_text):
+# Load models at startup
+device, model_pipe = load_models()
+
+def generate_video_from_flavor(flavor_description, progress_bar, status_text, pipe=model_pipe):
     base_prompt = f"Artistic representation of {flavor_description}, vibrant colors, abstract, food photography style"
     num_images = 8  
     num_inference_steps = 8  
@@ -158,7 +164,7 @@ if st.button("🎨 Generate Artistic Video"):
     
     try:
         status_text.text("Preparing to generate video...")
-        video = generate_video_from_flavor(flavor_description, progress_bar, status_text)
+        video = generate_video_from_flavor(flavor_description, progress_bar, status_text, model_pipe)
         save_and_display_video(video, flavor_description)
     except Exception as e:
         st.error(f"An unexpected error occurred: {str(e)}")
