@@ -1,8 +1,8 @@
-streamlit==1.39.0
-torch==2.5.1
-diffusers==0.31.0
-moviepy==1.0.3
-numpy==2.1.2
-Pillow==10.4.0
-transformers==4.46.1
-accelerate==0.27.0
+streamlit
+torch
+diffusers
+moviepy
+numpy
+Pillow
+transformers
+accelerate
