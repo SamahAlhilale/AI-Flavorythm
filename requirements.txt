@@ -1,7 +1,7 @@
 streamlit
 diffusers
 torch 
-moviepy>=2.0.0
+moviepy
 Pillow
 numpy
 transformers
