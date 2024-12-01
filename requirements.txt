@@ -1,0 +1,8 @@
+streamlit
+diffusers
+torch 
+moviepy>=2.0.0
+Pillow
+numpy
+transformers
+python-dotenv
