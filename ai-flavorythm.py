@@ -1,7 +1,7 @@
-﻿import streamlit as st
+import streamlit as st
 import torch
 from diffusers import StableDiffusionPipeline
-from moviepy.editor import ImageClip, concatenate_videoclips, vfx
+from moviepy import ImageClip, concatenate_videoclips, vfx
 import numpy as np
 import re
 
