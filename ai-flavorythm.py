@@ -61,7 +61,7 @@ def load_model():
         loading_message = st.info('Loading model... This may take a few minutes the first time...')
         
         pipe = StableDiffusionPipeline.from_pretrained(
-            "CompVis/stable-diffusion-v1-5",
+            "CompVis/stable-diffusion-v1-4",
             torch_dtype=torch.float32,
             safety_checker=None,
             requires_safety_checker=False
