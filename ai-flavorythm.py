@@ -61,7 +61,7 @@ def load_model():
         loading_message = st.info('Loading model... This may take a few minutes the first time...')
         
         pipe = StableDiffusionPipeline.from_pretrained(
-            "CompVis/stable-diffusion-v1-4",
+            "CompVis/stable-diffusion-v1-5",
             torch_dtype=torch.float32,
             safety_checker=None,
             requires_safety_checker=False
@@ -80,10 +80,10 @@ pipe = load_model()
 progress_text = st.empty()
 progress_bar = st.empty()
 
-def update_progress_callback(step: int, timestep: int, latents: torch.FloatTensor):
-    progress = min((step + 1) / 8, 1.0) * 100  # 8 steps for each image
-    progress_bar.progress(min(progress / 100, 1.0))
-    progress_text.markdown(f"<p class='progress-bar-text'>Generation Progress: {min(progress, 100):.0f}%</p>", 
+def update_progress_callback(step: int, timestep: int, latents: torch.FloatTensor, current_image: int):
+    total_progress = (current_image * 8 + (step + 1)) / 16 * 100  
+    progress_bar.progress(min(total_progress / 100, 1.0))
+    progress_text.markdown(f"<p class='progress-bar-text'>Generation Progress: {min(total_progress, 100):.0f}%</p>", 
                          unsafe_allow_html=True)
 
 def generate_video(flavor, progress_bar, status_text):
@@ -92,20 +92,20 @@ def generate_video(flavor, progress_bar, status_text):
         return None
         
     try:
-        prompt = f"Artistic representation of {flavor}, vibrant colors, abstract style"
+        prompt = f"Artistic representation of {flavor}, vibrant colors, abstract, food photography style"
         images = []
+        
+        progress_bar.progress(0)
+        progress_text.markdown("<p class='progress-bar-text'>Starting generation...</p>", 
+                            unsafe_allow_html=True)
         
         for i in range(2):
             with torch.inference_mode():
-                progress_bar.progress(0)
-                progress_text.markdown("<p class='progress-bar-text'>Starting generation...</p>", 
-                                    unsafe_allow_html=True)
-                
                 image = pipe(
                     prompt,
                     num_inference_steps=8,
                     guidance_scale=7.0,
-                    callback=update_progress_callback,
+                    callback=lambda step, timestep, latents: update_progress_callback(step, timestep, latents, i),
                     callback_steps=1
                 ).images[0]
                 images.append(np.array(image))
