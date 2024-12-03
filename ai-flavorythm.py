@@ -81,18 +81,18 @@ progress_text = st.empty()
 progress_bar = st.empty()
 
 def update_progress_callback(step: int, timestep: int, latents: torch.FloatTensor, current_image: int):
-    total_progress = (current_image * 8 + (step + 1)) / 16 * 100  
+    total_progress = (current_image * 4 + (step + 1)) / 8 * 100  
     progress_bar.progress(min(total_progress / 100, 1.0))
     progress_text.markdown(f"<p class='progress-bar-text'>Generation Progress: {min(total_progress, 100):.0f}%</p>", 
                          unsafe_allow_html=True)
-
+    
 def generate_video(flavor, progress_bar, status_text):
     if pipe is None:
         st.error("Model failed to load. Please try refreshing the page.")
         return None
         
     try:
-        prompt = f"Artistic representation of {flavor}, vibrant colors, abstract, food photography style"
+        prompt = f"Artistic representation of {flavor}, Digital art, colorful, abstract, food illustration."
         images = []
         
         progress_bar.progress(0)
@@ -103,11 +103,12 @@ def generate_video(flavor, progress_bar, status_text):
             with torch.inference_mode():
                 image = pipe(
                     prompt,
-                    num_inference_steps=8,
-                    guidance_scale=7.0,
+                    num_inference_steps=4,  
+                    guidance_scale=5.0,     
                     callback=lambda step, timestep, latents: update_progress_callback(step, timestep, latents, i),
                     callback_steps=1
                 ).images[0]
+                image = image.resize((512, 512))
                 images.append(np.array(image))
         
         status_text.text("Creating video...")
@@ -119,7 +120,11 @@ def generate_video(flavor, progress_bar, status_text):
             
         final_clip = concatenate_videoclips(clips)
         filename = f"{re.sub(r'\W+', '_', flavor)}.mp4"
-        final_clip.write_videofile(filename, fps=24)
+        final_clip.write_videofile(filename, 
+                                 fps=24, 
+                                 codec='libx264', 
+                                 bitrate='1000k',  
+                                 preset='faster')  
         
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
